@@ -1,0 +1,101 @@
+---
+---
+title: "Reproducible Research: Peer Assessment 1"
+author: "Ahmed Mohamed"
+date: "16‏/10‏/2020"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading and preprocessing the data
+```{r }
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", destfile = "activity.zip", mode="wb")
+# unzip data and read 
+unzip("activity.zip")
+stepdata <- read.csv("activity.csv", header = TRUE)
+head(stepdata)
+```
+## attaching packages
+```{r}
+require(dplyr)
+library(ggplot2)
+
+```
+
+## What is mean total number of steps taken per day?
+```{r}
+stepByDate<-stepdata%>%select(date,steps)%>%group_by(date)%>%summarize(steps=sum(steps))%>%na.omit()
+hist(stepByDate$steps, xlab = "Total daily Steps",main="Histogram of Total Steps by day",breaks = 20)
+mean(stepByDate$steps)
+median(stepByDate$steps)
+```
+
+
+## What is the average daily activity pattern?
+```{r}
+dataByInterval<- stepdata%>%select(interval,steps)%>%na.omit()%>%group_by(interval)%>%summarize(steps=mean(steps))
+ggplot(dataByInterval, aes(x=interval, y=steps))+ geom_line()
+dataByInterval[which(dataByInterval$steps== max(dataByInterval$steps)),]
+
+
+```
+
+
+## Imputing missing values
+```{r}
+missingValue<-sum(is.na(stepdata))
+missingValue
+meanData<-stepdata%>%group_by(interval)%>%mutate(steps=replace(steps,is.na(steps),mean(steps,na.rm = T)))
+head(meanData)
+FullSummedDataByDay<-with(meanData,aggregate(steps,by=list(date),sum))
+names(FullSummedDataByDay)[1] ="date"
+names(FullSummedDataByDay)[2] ="totalsteps"
+head(FullSummedDataByDay)
+summary(FullSummedDataByDay)
+hist(FullSummedDataByDay$totalsteps, xlab = "Steps", ylab = "Frequency", main = "Total Daily Steps", breaks = 20)
+oldmean <- mean(stepByDate$steps, na.rm = TRUE)
+newmean <- mean(FullSummedDataByDay$totalsteps)
+oldmean
+newmean
+oldmedian <- median(stepByDate$steps, na.rm = TRUE)
+newmedian <- median(FullSummedDataByDay$totalsteps)
+oldmedian
+newmedian
+```
+
+
+## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+activityDoW <- meanData
+activityDoW$date <- as.Date(activityDoW$date)
+activityDoW$day <- ifelse(weekdays(activityDoW$date) %in% c("السبت", "الحد"), "weekend", "weekday")
+activityDoW$day <- as.factor(activityDoW$day)
+activityWeekday <- activityDoW%>% filter(day == "weekday")
+activityWeekend <- activityDoW%>%filter(day == "weekend")
+
+activityWeekday <- activityWeekday %>%
+        group_by(interval) %>%
+        summarize(steps = mean(steps)) 
+activityWeekday$day <- "weekday"
+
+activityWeekend <- activityWeekend %>%
+        group_by(interval) %>%
+        summarize(steps = mean(steps)) 
+activityWeekend$day <- "weekend"
+
+wkdayWkend <- rbind(activityWeekday, activityWeekend)
+wkdayWkend$day <- as.factor(wkdayWkend$day)
+
+
+g <- ggplot (wkdayWkend, aes (interval, steps))
+g + geom_line() + facet_grid (day~.) + 
+        theme(axis.text = element_text(size = 12),axis.title = element_text(size = 14)) + 
+        labs(y = "Number of Steps") + labs(x = "Interval") + 
+        ggtitle("Average Number of Steps - Weekday vs. Weekend") + 
+        theme(plot.title = element_text(hjust = 0.5))
+```
